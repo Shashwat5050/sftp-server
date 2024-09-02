@@ -20,6 +20,9 @@ create_user() {
     info "Creating user '${username}'."
     # local enc_pass=$(echo "${password}" | openssl passwd -1 -stdin)
     if useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"; then
+      # add user to sftp_users group
+      usermod -aG sftpusers ${username}
+      info "User '${username}' added to the sftp_users group."
       info "User '${username}' created with password '${password}'."
       return 0  # Exit with code 0 on successful creation
     else
