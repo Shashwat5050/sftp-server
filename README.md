@@ -26,3 +26,10 @@ To configure SFTP users, pass their details as environment variables when runnin
 - `USER1`, `PASS1`, `UID1` for the first user.
 - `USER2`, `PASS2`, `UID2` for the second user.
 - `USER3`, `PASS3`, `UID3` for the third user, and so on.
+
+## Scripts Available
+
+1. create_user.sh username password uid
+2. delete_user.sh username
+3. update_user_password.sh username password
+4. update_username.sh old_username new_username

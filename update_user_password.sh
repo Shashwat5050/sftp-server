@@ -24,12 +24,24 @@ update_password() {
 
   if id "${username}" >/dev/null 2>&1; then
     info "Updating password for user '${username}'."
-    echo "${username}:${new_password}" | chpasswd
-    success "Password for user '${username}' has been updated."
+    
+    # Update the password using usermod with the pre-hashed password
+    if usermod -p "${new_password}" "${username}"; then
+      success "Password for user '${username}' has been updated."
+      return 0  # Success
+    else
+      error "Failed to update password for user '${username}'."
+      return 1  # Error updating password
+    fi
   else
     error "User '${username}' does not exist."
+    return 2  # User does not exist
   fi
 }
 
 # Example usage: ./update_password.sh username new_password
 update_password "$1" "$2"
+exit_code=$?
+
+# Exit the script with the exit code returned by the function
+exit $exit_code
