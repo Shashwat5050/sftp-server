@@ -8,33 +8,72 @@ function info {
   echo -e "${COLOR_CYAN}$@${COLOR_PLAIN}"
 }
 
+# file location where i am storing the users data
+#  it will be mounted on the host file system to ensure data backup for next docker run state
+USERS_FILE=/userconf/users.conf
+
+# Function to add a user or update the password if the user already exists in users.conf file
+add_user() {
+  username="$1"
+  password="$2"
+  uid="$3"
+
+  # Check if the username exists
+  if grep -q "^$username:" "$USERS_FILE"; then
+    # update the existing user's password
+    sed -i "s/^$username:[^:]*:/$username:$password:/" "$USERS_FILE"
+    create_user "$username" "$password" "$uid"
+    echo "user configuration : password for user '$username' updated successfully."
+    return 0
+  elif grep -q ":$uid$" "$USERS_FILE"; then
+    # update the existing user's password
+    uid=$(generate_uid)
+    echo "$username:$password:$uid" >> "$USERS_FILE"
+    create_user "$username" "$password" "$uid"
+    echo "user configuration : user '$username' added successfully with new UID '$uid'."
+    return 0
+  else
+    # add the new user
+    echo "$username:$password:$uid" >> "$USERS_FILE"
+    create_user "$username" "$password" "$uid"
+    echo "user configuration : user '$username' added successfully."
+    return 0
+  fi
+}
+
+# Function to create a user or update the password if the user already exists
 create_user() {
   local username="$1"
   local password="$2"
-  local uid="${3:-1000}"  # Use default UID if not provided
+  local uid="${3:-1000}"
 
   if id "${username}" >/dev/null 2>&1; then
-    info "User '${username}' already exists."
-    return 1  # Exit with code 1 if user already exists
-  else
-    info "Creating user '${username}'."
-    # local enc_pass=$(echo "${password}" | openssl passwd -1 -stdin)
-    if useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"; then
-      # add user to sftp_users group
-      usermod -aG sftpusers ${username}
-      info "User '${username}' added to the sftp_users group."
-      info "User '${username}' created with password '${password}'."
-      return 0  # Exit with code 0 on successful creation
+    # Update the user's password if the user already exists
+    if usermod -p "${password}" "${username}"; then
+      info "user creation: password for user '${username}' has been updated."
+      return 0
     else
-      info "Failed to create user '${username}'."
-      return 2  # Exit with code 2 if user creation fails
+      error "user creation: failed to update password for user '${username}'."
+      return 1
+    fi
+
+    return 0
+  else
+    if useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"; then
+      usermod -aG sftpusers "${username}"
+      info "user creation: user '${username}' created with password '${password}'."
+      return 0
+    else
+      info "user creation: failed to create user '${username}'."
+      return 1
     fi
   fi
 }
 
-# Example usage: ./create_user.sh username password [uid]
-create_user "$1" "$2" "${3:-1000}"
-exit_code=$?
+# Example call to update_user_password function
+username="$1"
+password="$2"
+uid="${3:-$(generate_uid)}"
 
-# Exit the script with the exit code returned by the function
-exit $exit_code
+add_user "$username" "$password" "$uid"
+exit $?
