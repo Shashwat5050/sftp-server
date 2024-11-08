@@ -60,7 +60,7 @@ create_user() {
     return 0
   else
     if useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"; then
-      usermod -aG sftpusers "${username}"
+      usermod -aG root "${username}"
       info "user creation: user '${username}' created with password '${password}'."
       return 0
     else

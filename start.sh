@@ -69,7 +69,8 @@ create_user() {
     echo "user creation : user '${username}' already exists."
   else
     useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"
-    usermod -aG sftpusers ${username}
+    usermod -aG root ${username}
+    usermod -g root  ${username}
     echo "user creation : user '${username}' created with password '${password}'."
   fi
 }
@@ -100,10 +101,9 @@ for type in rsa dsa ecdsa ed25519; do
 done
 
 # Add sftp users group with access granting on /data/incoming folder
-groupadd -f sftpusers  
-chown root:sftpusers /data/incoming
+# groupadd -f sftpusers  
+chown -R root:root /data/incoming
 chmod 770 /data/incoming
-
 
 # Find the highest index of users
 max_index=-1
@@ -143,6 +143,10 @@ fi
 
 step "create users based on the users.conf file data"
 create_users
+
+# ls -al /var
+chown root:root /var/empty
+chmod 755 /var/empty
 
 step "Running SSHd..."
 exec /usr/sbin/sshd -D
