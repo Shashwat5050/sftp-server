@@ -9,7 +9,7 @@ function info {
 }
 
 function step {
-    info "[$(date +%H:%M:%S)] $@"
+  info "[$(date +%H:%M:%S)] $@"
 }
 
 # file location where i am storing the users data
@@ -19,7 +19,7 @@ USERS_FILE=/userconf/users.conf
 # Function to generate a random UID that does not already exist in the users.conf file
 generate_uid() {
   while true; do
-    uid=$(shuf -i 1000-9999 -n 1)  # Generate a random UID between 1000 and 9999
+    uid=$(shuf -i 1000-9999 -n 1) # Generate a random UID between 1000 and 9999
     if ! grep -q ":$uid$" "$USERS_FILE"; then
       echo "$uid"
       return 0
@@ -54,7 +54,7 @@ add_user() {
   else
     # add the new user
     echo "user configuration : create new user"
-    echo "$username:$password:$uid" >> "$USERS_FILE"
+    echo "$username:$password:$uid" >>"$USERS_FILE"
     echo "user configuration : User '$username' added successfully."
   fi
 }
@@ -70,7 +70,7 @@ create_user() {
   else
     useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"
     usermod -aG root ${username}
-    usermod -g root  ${username}
+    usermod -g root ${username}
     echo "user creation : user '${username}' created with password '${password}'."
   fi
 }
@@ -81,7 +81,7 @@ create_users() {
   echo "Iterating all the users present in the ${USERS_FILE} file and adding them to the container..."
   while IFS=":" read -r username password uid; do
     create_user "${username}" "${password}" "${uid}"
-  done < "$USERS_FILE"
+  done <"$USERS_FILE"
 }
 
 # check if the users.conf file exists
@@ -91,7 +91,7 @@ if [ ! -f "$USERS_FILE" ]; then
 fi
 
 step "checking SSH host keys..."
-for type in rsa dsa ecdsa ed25519; do
+for type in rsa ecdsa ed25519; do
   if ! [ -e "/ssh/ssh_host_${type}_key" ]; then
     info "Generating /ssh/ssh_host_${type}_key..."
     ssh-keygen -f "/ssh/ssh_host_${type}_key" -N '' -t ${type} 2>&1 >/dev/null
@@ -101,34 +101,34 @@ for type in rsa dsa ecdsa ed25519; do
 done
 
 # Add sftp users group with access granting on /data/incoming folder
-# groupadd -f sftpusers  
-chown -R root:root /data/incoming
+# groupadd -f sftpusers
+chown -R nobody:nobody /data/incoming
 chmod 770 /data/incoming
 
 # Find the highest index of users
 max_index=-1
 for var in $(env | grep -E '^USER[0-9]+=' | cut -d'=' -f1); do
   index=$(echo "$var" | sed 's/USER//')
-  if (( index > max_index )); then
+  if ((index > max_index)); then
     max_index=$index
   fi
 done
 
 # If users are there, then iterate over them and update the users.conf actual data file
 step "user configuration : update users.conf file based on the environment variables"
-if (( max_index >= 0 )); then
+if ((max_index >= 0)); then
   # Iterate through environment variables and create users
   for i in $(seq 0 "$max_index"); do
     user_var="USER${i}"
     pass_var="PASS${i}"
     uid_var="UID${i}"
-    
+
     username=${!user_var:-}
     password=${!pass_var:-}
     uid=${!uid_var:-}
 
     echo "adding user: ${username} and password: ${password}"
-    
+
     if [ -n "${username}" ] && [ -n "${password}" ]; then
       add_user "${username}" "${password}"
     else
