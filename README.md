@@ -29,7 +29,22 @@ To configure SFTP users, pass their details as environment variables when runnin
 
 ## Scripts Available
 
+Below scripts are available for external applications which can ssh into the container. This will help us to dynamically create users inside the container without restarting the sshd process.
+
 1. create_user.sh username password uid
 2. delete_user.sh username
 3. update_user_password.sh username password
 4. update_username.sh old_username new_username
+
+# How to debug sftp server
+
+1. Create Docker Image
+- Run `docker build .` in project root directory.
+
+2. Start Docker container using above created image
+- Run `docker run -p 22:22 -v /userconf:/userconf -v <folder path which needs to be mounted>:/data/incoming  <docker image id>` to start sftp server on port 22 which will allow all the users to connect to the sftp server. It will host the folder-path provided.
+- This will by default create one user with username `test` and password `123`.
+
+3. Pass users in env of the docker container
+- If you want to create users when the container is just started, you can pass env to create users. Below is an updated command for the same.
+- `docker run -p 22:22 -v /userconf:/userconf -v <folder path which needs to be mounted>:/data/incoming -e USER1=test1 PASS1=<encrypted password using crypt md5 algorithm> UID1=<random uid of the user>  <docker image id>`

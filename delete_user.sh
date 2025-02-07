@@ -1,17 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
-COLOR_RED="\033[0;31m"
-COLOR_GREEN="\033[0;32m"
 COLOR_PLAIN="\033[0m"
+COLOR_RED="\033[0;31m"
 
+# Function to log info messages
 function info {
-  echo -e "${COLOR_GREEN}$@${COLOR_PLAIN}"
+  echo -e "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')]: $@"
 }
 
+# Function to log error messages
 function error {
-  echo -e "${COLOR_RED}$@${COLOR_PLAIN}" >&2
+  echo -e "${COLOR_RED}[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')]: $@${COLOR_PLAIN}"
 }
+
+# File location where users data will be stored for persistent storage.
+# It will be mounted on the host file system to ensure data backup for next docker run state.
+# Data should be persitent across multiple docker start stop operations.
+USERS_DATA_FOLDER=/userconf # Mounted on the host file system for data persistence.
+USERS_FILE=$USERS_DATA_FOLDER/users.conf
 
 delete_user() {
   local username="$1"

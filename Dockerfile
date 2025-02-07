@@ -31,7 +31,6 @@ RUN chmod +x /usr/local/bin/update_user_password.sh
 
 ADD sshd_config /etc/ssh/sshd_config
 
-VOLUME ["/data", "/ssh"]
 EXPOSE 22
 
 ENTRYPOINT ["/usr/local/bin/start.sh"]

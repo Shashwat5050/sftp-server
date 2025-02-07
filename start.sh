@@ -1,20 +1,33 @@
 #!/usr/local/bin/dumb-init /bin/bash
 set -euo pipefail
 
-COLOR_CYAN="\033[0;36m"
 COLOR_PLAIN="\033[0m"
+COLOR_RED="\033[0;31m"
 
+# Function to log info messages
 function info {
-  echo -e "${COLOR_CYAN}$@${COLOR_PLAIN}"
+  echo -e "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')]: $@"
 }
 
-function step {
-  info "[$(date +%H:%M:%S)] $@"
+# Function to log error messages
+function error {
+  echo -e "${COLOR_RED}[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')]: $@${COLOR_PLAIN}"
 }
 
-# file location where i am storing the users data
-#  it will be mounted on the host file system to ensure data backup for next docker run state
-USERS_FILE=/userconf/users.conf
+# File location where users data will be stored for persistent storage.
+# It will be mounted on the host file system to ensure data backup for next docker run state.
+# Data should be persitent across multiple docker start stop operations.
+USERS_DATA_FOLDER=/userconf # Mounted on the host file system for data persistence.
+USERS_FILE=$USERS_DATA_FOLDER/users.conf
+
+# Check if the users.conf file exists
+if [ ! -f "$USERS_FILE" ]; then
+  # If the file does not exist, create it.
+  touch "$USERS_FILE"
+  error "users.conf file does not exist, Created users.conf file at $USERS_FILE"
+else
+  info "users.conf file already exists."
+fi
 
 # Function to generate a random UID that does not already exist in the users.conf file
 generate_uid() {
@@ -35,27 +48,20 @@ add_user() {
 
   # Check if the username exists
   if grep -q "^$username:" "$USERS_FILE"; then
-    # update the existing user's password
+    # Update the existing user's password
     # Escape special characters in username and password for sed
     safe_username=$(printf '%s' "$username" | sed 's/[&/\]/\\&/g')
     safe_password=$(printf '%s' "$password" | sed 's/[&/\]/\\&/g')
-    echo "user configuration : update password"
-    # sed -i "s/^$username:[^:]*:/$username:$password:/" "$USERS_FILE"
+
+    info "Update password for user ${username}"
     if ! sed -i "s|^$safe_username:[^:]*:|$safe_username:$safe_password:|" "$USERS_FILE"; then
-      echo "Error: Failed to update password for user '$safe_username'."
+      error "Failed to update password for user '$safe_username'."
       return 1
     fi
-    echo "user configuration : Password for user '$username' updated successfully."
-  # elif grep -q ":$uid$" "$USERS_FILE"; then
-  #   # update the existing user's password
-  #   echo "user configuration : create new user with new uid"
-  #   echo "$username:$password:$uid" >> "$USERS_FILE"
-  #   echo "user configuration : User '$username' added successfully with new UID '$uid'."
+    info "Password of user '$username' updated successfully."
   else
-    # add the new user
-    echo "user configuration : create new user"
     echo "$username:$password:$uid" >>"$USERS_FILE"
-    echo "user configuration : User '$username' added successfully."
+    info "User '$username' added successfully."
   fi
 }
 
@@ -66,44 +72,61 @@ create_user() {
   local uid="$3"
 
   if id "${username}" >/dev/null 2>&1; then
-    echo "user creation : user '${username}' already exists."
+    info "User '${username}' already exists."
   else
+    # Create user with given uid, username, and password
+    info "Creating user '${username}' with uid '${uid}'."
     useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"
-    usermod -aG root ${username}
-    usermod -g root ${username}
-    echo "user creation : user '${username}' created with password '${password}'."
+
+    # Add to nobody group as secondary group
+    usermod -a -G nobody ${username}
+    info "User '${username}' created."
   fi
 }
 
 # Assuming that the users.conf file contains the original and updated data
 # Function to iterate over all users and print their details
 create_users() {
-  echo "Iterating all the users present in the ${USERS_FILE} file and adding them to the container..."
+  info "Iterating all the users present in the ${USERS_FILE} file and adding them to the container..."
   while IFS=":" read -r username password uid; do
     create_user "${username}" "${password}" "${uid}"
   done <"$USERS_FILE"
 }
 
-# check if the users.conf file exists
-if [ ! -f "$USERS_FILE" ]; then
-  echo "Error: $USERS_FILE does not exist."
-  exit 1
-fi
+# Set key directory
+KEY_DIR="/etc/ssh"
+mkdir -p "$KEY_DIR"
 
-step "checking SSH host keys..."
-for type in rsa ecdsa ed25519; do
-  if ! [ -e "/ssh/ssh_host_${type}_key" ]; then
-    info "Generating /ssh/ssh_host_${type}_key..."
-    ssh-keygen -f "/ssh/ssh_host_${type}_key" -N '' -t ${type} 2>&1 >/dev/null
+# Define key types to generate
+# NOTE: for simplicity we will be using one key type only. Add HostKey in the sshd_config if updating key types.
+KEY_TYPES=("rsa")
+
+# Function to generate a host key if it does not exist
+generate_host_key() {
+  local key_type=$1
+  local key_path="$KEY_DIR/ssh_host_${key_type}_key"
+
+  if [[ ! -f "$key_path" ]]; then
+    info "Generating SSH $key_type host key..."
+    ssh-keygen -t "$key_type" -f "$key_path" -N "" -q
+    chmod 600 "$key_path"
+    info 644 "$key_path.pub"
+    info "Host key generated: $key_path"
+  else
+    info "Host key already exists: $key_path"
   fi
+}
 
-  ln -sf "/ssh/ssh_host_${type}_key" "/etc/ssh/ssh_host_${type}_key"
+# Generate keys for each type
+for key in "${KEY_TYPES[@]}"; do
+  generate_host_key "$key"
 done
 
-# Add sftp users group with access granting on /data/incoming folder
-# groupadd -f sftpusers
+# Add nobody group with access granting on /data/incoming folder
+# Allow everyone to access /data/incoming folder
 chown -R nobody:nobody /data/incoming
-chmod 770 /data/incoming
+chmod -R 777 /data/incoming
+info "Permissions granted on /data/incoming folder."
 
 # Find the highest index of users
 max_index=-1
@@ -115,7 +138,7 @@ for var in $(env | grep -E '^USER[0-9]+=' | cut -d'=' -f1); do
 done
 
 # If users are there, then iterate over them and update the users.conf actual data file
-step "user configuration : update users.conf file based on the environment variables"
+info "user configuration : update users.conf file based on the environment variables"
 if ((max_index >= 0)); then
   # Iterate through environment variables and create users
   for i in $(seq 0 "$max_index"); do
@@ -127,7 +150,7 @@ if ((max_index >= 0)); then
     password=${!pass_var:-}
     uid=${!uid_var:-}
 
-    echo "adding user: ${username} and password: ${password}"
+    info "Adding user '${username}' to configuration file."
 
     if [ -n "${username}" ] && [ -n "${password}" ]; then
       add_user "${username}" "${password}"
@@ -136,22 +159,20 @@ if ((max_index >= 0)); then
     fi
   done
 else
-  echo "No users to create."
+  info "No new users to create."
 fi
 
 # Now iterate over all the users present inside the uesrs.conf and update the container with the latest data
-
-step "create users based on the users.conf file data"
+info "Create users based on the users.conf file data"
 create_users
 
-# ls -al /var
 chown root:root /var/empty
 chmod 755 /var/empty
 
-step "Running SSHd..."
-exec /usr/sbin/sshd -D
+info "Running SSHd..."
+exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config
 
-if [ $? -ne 0 ]; then
-  echo "Error: Failed to start SSH daemon."
-  exit 2
-fi
+# NOTE
+# -D : sshd will not detach and does not become a daemon. This allows easy monitoring of sshd.
+# -f : Specifies the path to the sshd configuration file.
+# -e : When this option is specified, sshd will send the output to the standard error instead of the system log.

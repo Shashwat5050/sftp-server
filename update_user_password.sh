@@ -1,31 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-COLOR_GREEN="\033[0;32m"
-COLOR_CYAN="\033[0;36m"
 COLOR_RED="\033[0;31m"
 COLOR_PLAIN="\033[0m"
 
-# file location where i am storing the users data
-#  it will be mounted on the host file system to ensure data backup for next docker run state
-USERS_FILE=/userconf/users.conf
-
+# Function to log info messages
 function info {
-  echo -e "${COLOR_CYAN}$@${COLOR_PLAIN}"
+  echo -e "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')]: $@"
 }
 
-function success {
-  echo -e "${COLOR_GREEN}$@${COLOR_PLAIN}"
-}
-
+# Function to log error messages
 function error {
-  echo -e "${COLOR_RED}$@${COLOR_PLAIN}"
+  echo -e "${COLOR_RED}[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')]: $@${COLOR_PLAIN}"
 }
+
+# File location where users data will be stored for persistent storage.
+# It will be mounted on the host file system to ensure data backup for next docker run state.
+# Data should be persitent across multiple docker start stop operations.
+USERS_DATA_FOLDER=/userconf # Mounted on the host file system for data persistence.
+USERS_FILE=$USERS_DATA_FOLDER/users.conf
 
 # Function to generate a random UID that does not already exist in the users.conf file
 generate_uid() {
   while true; do
-    uid=$(shuf -i 1000-9999 -n 1)  # Generate a random UID between 1000 and 9999
+    uid=$(shuf -i 1000-9999 -n 1) # Generate a random UID between 1000 and 9999
     if ! grep -q ":$uid$" "$USERS_FILE"; then
       echo "$uid"
       return 0
@@ -48,12 +46,12 @@ update_user_password() {
   elif grep -q ":$uid$" "$USERS_FILE"; then
     # Update the existing user's password
     uid=$(generate_uid)
-    echo "$username:$password:$uid" >> "$USERS_FILE"
+    echo "$username:$password:$uid" >>"$USERS_FILE"
     create_user "$username" "$password" "$uid"
     echo "user configuration: user '$username' added successfully with new UID '$uid'."
   else
     # Add the new user
-    echo "$username:$password:$uid" >> "$USERS_FILE"
+    echo "$username:$password:$uid" >>"$USERS_FILE"
     create_user "$username" "$password" "$uid"
     echo "user configuration: user '$username' added successfully."
   fi
