@@ -78,8 +78,8 @@ create_user() {
     info "Creating user '${username}' with uid '${uid}'."
     useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"
 
-    # Add to nobody group as secondary group
-    usermod -a -G nobody ${username}
+    # Add to nogroup group as secondary group
+    usermod -a -G nogroup ${username}
     info "User '${username}' created."
   fi
 }
@@ -124,7 +124,7 @@ done
 
 # Add nobody group with access granting on /data/incoming folder
 # Allow everyone to access /data/incoming folder
-chown -R nobody:nobody /data/incoming
+chown -R nobody:nogroup /data/incoming
 chmod -R 777 /data/incoming
 info "Permissions granted on /data/incoming folder."
 

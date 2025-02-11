@@ -48,3 +48,7 @@ Below scripts are available for external applications which can ssh into the con
 3. Pass users in env of the docker container
 - If you want to create users when the container is just started, you can pass env to create users. Below is an updated command for the same.
 - `docker run -p 22:22 -v /userconf:/userconf -v <folder path which needs to be mounted>:/data/incoming -e USER1=test1 PASS1=<encrypted password using crypt md5 algorithm> UID1=<random uid of the user>  <docker image id>`
+
+### References:
+
+- https://man.openbsd.org/sftp-server

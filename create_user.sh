@@ -80,7 +80,7 @@ create_user() {
     return 0
   else
     if useradd -d /data -m -p "${password}" -u "${uid}" -s /bin/sh "${username}"; then
-      usermod -a -G nobody "${username}"
+      usermod -a -G nogroup "${username}"
       # info "User '${username}' created with password '${password}'." # Uncomment this line to debug the password creation process.
       info "User '${username}' created."
       return 0
